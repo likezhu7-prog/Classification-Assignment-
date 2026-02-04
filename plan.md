@@ -1,260 +1,211 @@
-# Error Analysis + SHAP 可解释性分析计划
+# Error Analysis + SHAP 计划 (Plan 2)
 
 ---
 
-## 核心故事 (Story)
+## 数据文件
 
-**核心问题：** 如果我把"答案写在题目里的词"（病名、同义词）全部删掉，模型还能不能靠论文的**真正内容**来判断癌症类型？
-
-**实验设计：**
-- 原始数据：`merged_cancer.csv`（包含病名关键词）
-- 处理后数据：`merged_cancer_no_keywords.csv`（删除病名和同义词）
-
-**预期发现：**
-- 某些癌症（如 Lung Cancer）可能有独特的标志性词汇，即使删除病名也能分类
-- 某些癌症（如 Colon vs Stomach）可能在研究内容上高度重叠，删除关键词后难以区分
-- 这个对比揭示了"表面特征" vs "深层语义"的分类能力差异
+| 文件 | 用途 |
+|------|------|
+| `cancer_cleaned_trimmed.csv` | 原始数据（含病名） |
+| `cancer_cleaned_v2_trimmed.csv` | 去病名后的数据 |
 
 ---
 
-## 1. 是否可以新开 notebook？
+## 你的核心 Story
 
-**可以**，完全没问题。`error_analysis.ipynb` 独立运作。
+**问题：** 如果我把"答案写在题目里的词"全部删掉，模型还能靠论文的真正内容来判断吗？
 
----
-
-## 2. 是否依赖前面代码？
-
-**部分依赖**，但你可以选择：
-
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| **方案A: 独立新 notebook** | 干净、独立 | 需要重写数据加载和模型训练代码 |
-| **方案B: 在 models.ipynb 继续添加 cell** | 共享变量，不用重写 | 文件变长 |
-
-**推荐方案A**，因为 Error Analysis 是独立的任务。
+**对比实验：**
+1. 原始数据 → 准确率 A
+2. 去病名数据 → 准确率 B
+3. 准确率下降 = A - B
 
 ---
 
-## 3. 具体计划
+## 你需要做的工作
 
-### 第一阶段：数据准备（原始数据）
+### 1. 数据准备
 
 ```python
-# 1. 加载原始数据（带病名关键词）
-df_original = pd.read_csv("merged_cancer.csv")
-X_orig = df_original["cleaned_text"].astype(str)
-y = df_original["label"]
+# 加载两个数据
+df_orig = pd.read_csv("cancer_cleaned_trimmed.csv")
+df_no_kw = pd.read_csv("cancer_cleaned_v2_trimmed.csv")
 
-# 2. 划分训练集和测试集（保持和队友一致的 random_state=42）
-X_train, X_test, y_train, y_test = train_test_split(
-    X_orig, y, test_size=0.2, stratify=y, random_state=42
-)
+# 数据划分 (60/20/20)
+X_train, X_temp, y_train, y_temp = train_test_split(...)
+X_val, X_test, y_val, y_test = train_test_split(...)
+```
 
-# 3. 训练冠军模型（SVM + TF-IDF）
-pipeline_orig = make_tfidf_pipeline(LinearSVC())
-pipeline_orig.fit(X_train, y_train)
+### 2. 训练 SVM 冠军模型（用 Train+Validation）
+
+```python
+# 用原始数据训练
+pipeline_orig = Pipeline([
+    ("tfidf", TfidfVectorizer(...)),
+    ("clf", LinearSVC())
+])
+pipeline_orig.fit(X_train + X_val, y_train + y_val)
 y_pred_orig = pipeline_orig.predict(X_test)
 
-# 4. 记录原始准确率
-accuracy_original = (y_pred_orig == y_test).mean()
-print(f"原始数据准确率: {accuracy_original:.4f}")
+# 用去病名数据训练
+pipeline_no_kw = Pipeline([
+    ("tfidf", TfidfVectorizer(...)),
+    ("clf", LinearSVC())
+])
+pipeline_no_kw.fit(X_train_no_kw + X_val_no_kw, y_train + y_val)
+y_pred_no_kw = pipeline_no_kw.predict(X_test_no_kw)
 ```
 
-### 第二阶段：Error Analysis（原始数据）
+### 3. Error Analysis（用 Test 数据）
 
 ```python
-# 1. 获取预测结果
-y_pred = pipeline_orig.predict(X_test)
+# 混淆矩阵
+cm_orig = confusion_matrix(y_test, y_pred_orig)
+cm_no_kw = confusion_matrix(y_test, y_pred_no_kw)
 
-# 2. 找出错误分类的样本
-errors = X_test[y_test != y_pred]
-error_labels = y_test[y_test != y_pred]
-error_preds = y_pred[y_test != y_pred]
+# 错误样本
+errors_orig = X_test[y_test != y_pred_orig]
+errors_no_kw = X_test_no_kw[y_test != y_pred_no_kw]
 
-# 3. 分析错误模式
-# - 哪些类别之间容易混淆？（混淆矩阵可视化）
-# - 类别 0 和 4 为什么容易互相混淆？
+# 分析：哪些类别互相混淆？
+for true in range(5):
+    for pred in range(5):
+        count = ...
+        if count > 0:
+            print(f"{label[true]} -> {label[pred]}: {count}")
 ```
 
-**需要做的事情：**
-- [ ] 绘制混淆矩阵热力图
-- [ ] 打印错误样本，对比真实标签和预测标签
-- [ ] 统计每对类别之间的混淆次数
-- [ ] 尝试找出语义原因（例如：某些癌症可能有相似的研究方向）
+**输出：**
+- 混淆矩阵热力图（原始 vs 去病名）
+- 错误样本分析
 
-### 第三阶段：SHAP 可解释性（原始数据）
+### 4. SHAP 可解释性
 
 ```python
-# 1. 提取 TF-IDF 向量器和模型
+# 原始模型
 vectorizer = pipeline_orig.named_steps["tfidf"]
 clf = pipeline_orig.named_steps["clf"]
-
-# 2. 将测试集转为 TF-IDF 特征
 X_test_tfidf = vectorizer.transform(X_test)
 
-# 3. SHAP 分析（针对线性模型用 LinearExplainer）
-import shap
 explainer = shap.LinearExplainer(clf, X_test_tfidf)
 shap_values = explainer.shap_values(X_test_tfidf)
 
-# 4. 可视化
-shap.summary_plot(shap_values, X_test_tfidf,
-                  feature_names=vectorizer.get_feature_names_out())
+# SHAP Summary Plot
+plt.figure(figsize=(16, 12))
+shap.summary_plot(shap_values, X_test_tfidf, feature_names=feature_names, max_display=20)
+plt.savefig("shap_summary_original.png")
+
+# Feature Importance (Top 20)
+mean_abs_shap = np.abs(shap_values).mean(axis=(0, 1))
+top_idx = np.argsort(mean_abs_shap)[-20:][::-1]
+top_features = [feature_names[i] for i in top_idx]
+plt.barh(top_features, mean_abs_shap[top_idx])
+plt.savefig("shap_feature_importance.png")
 ```
 
-**SHAP 需要做的事情：**
-- [ ] 特征重要性排序：哪些词对分类影响最大？
-- [ ] 每个类别的典型积极/消极特征
-- [ ] 解释为什么某些类别容易混淆（共享关键词？）
+**输出：**
+- SHAP Summary Plot
+- SHAP Feature Importance 图
 
-### 第四阶段：Bias and Variability Analysis
+### 5. 准确率对比（核心故事）
 
 ```python
-# 1. 从 10-fold CV 结果分析方差
-cv_results[name]["all_scores"]  # 10个准确率
+acc_orig = accuracy_score(y_test, y_pred_orig)
+acc_no_kw = accuracy_score(y_test, y_pred_no_kw)
+drop = (acc_orig - acc_no_kw) / acc_orig * 100
 
-# 2. 绘制不同 fold 的准确率变化图
-# 3. 分析模型稳定性
+print(f"原始准确率: {acc_orig:.4f}")
+print(f"去病名准确率: {acc_no_kw:.4f}")
+print(f"准确率下降: {drop:.1f}%")
 ```
 
-### 第五阶段：降低准确率实验（核心故事）
+**输出：**
+- 准确率对比柱状图
 
-> **核心问题：** 删除病名和同义词后，模型还能分类吗？
+### 6. Bias and Variability（用 10-fold CV）
 
 ```python
-# ============================================
-# 核心实验：使用删除病名后的数据
-# ============================================
+# 10-fold CV（用 Train 数据）
+cv_scores_orig = cross_val_score(pipeline_orig, X_train, y_train, cv=10)
+cv_scores_no_kw = cross_val_score(pipeline_no_kw, X_train_no_kw, y_train, cv=10)
 
-# 1. 加载删除病名后的数据
-df_no_keyword = pd.read_csv("merged_cancer_no_keywords.csv")
-X_no_kw = df_no_keyword["cleaned_text"].astype(str)
-
-# 注意：标签 y 保持不变（与原始数据对应）
-
-# 2. 使用相同的训练/测试集划分
-# 注意：需要确保 X_no_kw 与 X_orig 的索引对应
-X_train_no_kw = X_no_kw.iloc[X_train.index]
-X_test_no_kw = X_no_kw.iloc[X_test.index]
-
-# 3. 重新训练模型（相同的 pipeline）
-pipeline_no_kw = make_tfidf_pipeline(LinearSVC())
-pipeline_no_kw.fit(X_train_no_kw, y_train)
-y_pred_no_kw = pipeline_no_kw.predict(X_test_no_kw)
-
-# 4. 计算准确率下降
-accuracy_no_keyword = (y_pred_no_kw == y_test).mean()
-accuracy_drop = accuracy_original - accuracy_no_keyword
-
-print(f"原始数据准确率: {accuracy_original:.4f}")
-print(f"删除病名后准确率: {accuracy_no_keyword:.4f}")
-print(f"准确率下降: {accuracy_drop:.4f} ({accuracy_drop/accuracy_original*100:.1f}%)")
+print(f"原始 - Mean: {cv_scores_orig.mean():.4f}, Std: {cv_scores_orig.std():.4f}")
+print(f"去病名 - Mean: {cv_scores_no_kw.mean():.4f}, Std: {cv_scores_no_kw.std():.4f}")
 ```
 
-**分析任务：**
-- [ ] 对比两个准确率，计算下降百分比
-- [ ] 绘制对比柱状图
-- [ ] 分析哪些类别受影响最大/最小
-- [ ] **故事化解读：**
-  - 为什么某些癌症删除关键词后仍然可分？（有独特的专业术语）
-  - 为什么某些癌症删除关键词后几乎无法分？（研究内容高度重叠）
+**输出：**
+- 10-fold CV 波动图
 
-### 第六阶段：SHAP 对比分析（可选，深度 story）
+### 7. AUC（ROC 曲线）
 
 ```python
-# 对删除关键词后的数据进行 SHAP 分析
-# 对比哪些特征现在变成了重要特征
-X_test_no_kw_tfidf = pipeline_no_kw.named_steps["tfidf"].transform(X_test_no_kw)
-explainer_no_kw = shap.LinearExplainer(
-    pipeline_no_kw.named_steps["clf"], X_test_no_kw_tfidf
-)
-shap_values_no_kw = explainer_no_kw.shap_values(X_test_no_kw_tfidf)
+from sklearn.metrics import roc_curve, auc
+from sklearn.preprocessing import label_binarize
 
-# 对比两个模型的 top 特征
+y_test_bin = label_binarize(y_test, classes=[0,1,2,3,4])
+decision = clf.decision_function(X_test_tfidf)
+
+for i in range(5):
+    fpr, tpr, _ = roc_curve(y_test_bin[:, i], decision[:, i])
+    plt.plot(fpr, tpr, label=f"{label[i]} (AUC={auc(fpr,tpr):.2f})")
 ```
 
----
-
-## 4. 代码依赖图
-
-```
-error_analysis.ipynb
-      │
-      ├── 需要：merged_cancer.csv（原始数据）
-      ├── 需要：merged_cancer_no_keywords.csv（删除病名后的数据）
-      │         ↓
-      ├── 需要：make_tfidf_pipeline 函数（复制粘贴即可）
-      │
-      └── 需要：random_state=42（与队友保持一致）
-```
+**输出：**
+- ROC 曲线图
 
 ---
 
-## 5. 时间估算
+## 任务清单
 
-| 任务 | 预计时间 |
-|------|----------|
-| 数据加载 + 训练两个模型 | 15 分钟 |
-| 混淆矩阵 + 错误样本分析 | 30 分钟 |
-| SHAP 分析（原始数据） | 30 分钟 |
-| 删除关键词实验 | 20 分钟 |
-| SHAP 对比分析（可选） | 30 分钟 |
-| Bias and Variability 分析 | 15 分钟 |
-| 可视化整理 + 故事撰写 | 30 分钟 |
-| **总计** | **约 2.5 小时** |
-
----
-
-## 6. 待办清单
-
-- [ ] 创建 error_analysis.ipynb
-- [ ] 数据加载与两个模型训练（原始 + 删除病名）
-- [ ] 原始数据：混淆矩阵可视化
-- [ ] 原始数据：错误样本分析与统计
-- [ ] 原始数据：SHAP 特征重要性分析
-- [ ] 删除病名后的准确率实验
-- [ ] 准确率对比可视化
-- [ ] 类别受影响程度分析
-- [ ] Bias and Variability 分析
-- [ ] **撰写 Story**：删除关键词后的发现
-- [ ] 整理可视化图表用于报告
+- [ ] 1. 加载两个数据文件
+- [ ] 2. 数据划分（60/20/20）
+- [ ] 3. 训练 SVM 模型（原始 + 去病名）
+- [ ] 4. 混淆矩阵可视化
+- [ ] 5. 错误样本分析
+- [ ] 6. SHAP Summary Plot
+- [ ] 7. SHAP Feature Importance
+- [ ] 8. 准确率对比图
+- [ ] 9. 10-fold CV 波动图
+- [ ] 10. ROC 曲线图
+- [ ] 11. 撰写 Story
 
 ---
 
-## 7. 输出要求（对应作业评分项）
+## 输出文件
 
-| 评分项 | 输出内容 |
-|--------|----------|
-| Explainable Evaluations (2%) | SHAP summary plot, 特征重要性图表 |
-| Error Analysis + SHAP (2%) | 错误样本分析 + SHAP 可解释性 |
-| Visualizations (2%) | 混淆矩阵热力图, 准确率对比图, CV 波动图 |
-| Bias and Variability (2%) | 方差分析, 模型稳定性评估 |
-| AUC (1%) | ROC 曲线, 预测难度分析 |
-| Story 讲述 | 删除病名后的发现，语义重叠分析 |
+| 文件 | 内容 |
+|------|------|
+| `confusion_matrix_orig.png` | 原始数据混淆矩阵 |
+| `confusion_matrix_no_kw.png` | 去病名混淆矩阵 |
+| `confusion_matrix_comparison.png` | 混淆矩阵对比 |
+| `shap_summary_original.png` | SHAP Summary Plot |
+| `shap_feature_importance.png` | SHAP 特征重要性 |
+| `accuracy_comparison.png` | 准确率对比 |
+| `cv_variability.png` | 10-fold CV 波动 |
+| `roc_curves.png` | ROC 曲线 |
 
 ---
 
-## 8. 核心故事框架 (Report/PPT 用)
+## 对应评分项
 
-### 标题：模型是否真的"理解"了癌症论文，还是只是在找关键词？
+| 评分项 | 分值 | 对应输出 |
+|--------|------|----------|
+| Error Analysis | 2% | 混淆矩阵 + 错误分析 |
+| SHAP 可解释性 | 2% | SHAP 图 + 特征重要性 |
+| Visualizations | 2% | 所有图表 |
+| Bias/Variability | 2% | CV 波动图 |
+| AUC | 1% | ROC 曲线 |
+| Story | - | 准确率下降分析 |
 
-### 故事线：
-1. **现状：** SVM 模型在原始数据上达到 XX% 准确率
-2. **问题：** 模型是否依赖病名关键词来分类？
-3. **实验：** 删除所有病名和同义词，重新训练和测试
-4. **发现：**
-   - 整体准确率从 XX% 下降到 XX%（下降 XX%）
-   - 某些癌症（如 XXX）仍然可以区分，因为有独特的专业术语
-   - 某些癌症（如 XXX 和 XXX）无法区分，因为研究内容高度重叠
-5. **洞察：**
-   - 表面特征（病名）vs 深层语义（研究内容）
-   - 语义重叠：某些癌症的研究方向、治疗方法可能相似
-   - 模型的"智能"程度评估
+---
 
-### 图表需求：
-- [ ] 原始 vs 删除病名后的准确率对比柱状图
-- [ ] 每个类别准确率变化的对比图
-- [ ] 混淆矩阵对比（原始 vs 删除病名后）
-- [ ] SHAP 特征重要性对比
-- [ ] 10-fold CV 准确率波动图
+## 预计时间
+
+| 任务 | 时间 |
+|------|------|
+| 数据准备 + 训练模型 | 30 分钟 |
+| Error Analysis | 45 分钟 |
+| SHAP 分析 | 45 分钟 |
+| Bias/Variability + AUC | 30 分钟 |
+| 可视化整理 | 30 分钟 |
+| **总计** | **约 3 小时** |

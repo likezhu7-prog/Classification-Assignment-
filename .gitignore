@@ -1,2 +1,5 @@
 .DS_Store
 assignment_requirement.md
+plan.md
+venv/
+__pycache__/
