@@ -18,7 +18,7 @@ csv_cleaning.ipynb — The script used for cleaning and trimming the raw data.
 
 # Execution Steps
    
-re-process the raw data, run the script in the data_preparation folder.
+re-process the raw data: run the script in the data_preparation folder.
 
 Open the Notebook: Launch model_comparison_and_error_analysis.ipynb in Jupyter or VS Code.
 
