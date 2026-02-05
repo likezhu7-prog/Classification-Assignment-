@@ -1,7 +1,9 @@
 # Cancer Classification Project
+
 This project compares multiple NLP models to classify medical texts and evaluates how performance changes when key diagnostic terms are removed.
 
 # Setup Environment
+
 Install the required libraries:
 
 Bash
