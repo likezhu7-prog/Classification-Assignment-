@@ -32,8 +32,8 @@ warnings.filterwarnings('ignore')
 # 配置
 # =============================================================================
 RANDOM_STATE = 42
-TEST_SIZE = 0.20  # 20% for test
-VAL_SIZE = 0.50   # 50% of remaining = 10% of total = 20%
+TEST_SIZE = 0.40  # 40% to Temp, then 50% to Test = 20% of total
+VAL_SIZE = 0.50   # 50% of Temp to Validation = 20% of total
 
 LABEL_NAMES = {
     0: "Colon Cancer",
