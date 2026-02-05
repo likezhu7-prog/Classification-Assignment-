@@ -1,3 +1,12 @@
+# Cancer Classification Project
+This project compares multiple NLP models to classify medical texts and evaluates how performance changes when key diagnostic terms are removed.
+
+# Setup Environment
+Install the required libraries:
+
+Bash
+pip install pandas numpy scikit-learn matplotlib seaborn torch transformers xgboost
+
 # Directory Structure
 
 model_comparison_and_error_analysis.ipynb — Main analysis code.
