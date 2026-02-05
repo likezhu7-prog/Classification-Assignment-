@@ -1,4 +1,4 @@
-1. Directory Structure
+# Directory Structure
 
 model_comparison_and_error_analysis.ipynb — Main analysis code.
 
@@ -16,7 +16,7 @@ Thyroid_Cancer.csv — The original, unprocessed data.
 
 csv_cleaning.ipynb — The script used for cleaning and trimming the raw data.
 
-2. Execution Steps
+# Execution Steps
    
 re-process the raw data, run the script in the data_preparation folder.
 
@@ -28,7 +28,7 @@ BERT Features: Execute the BERT section to generate deep-learning embeddings.
 
 Error Analysis: Run the final section to see how removing keywords affects accuracy.
 
-3. Key Outputs
+# Key Outputs
    
 Champion Model: providing the best balance of speed and accuracy.
 
